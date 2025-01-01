@@ -2,7 +2,8 @@
 ```docker-compose up -d```
 
 ## build Database
-```docker exec -it backend-postgres1-1 psql -U postgres -d postgres```
+```docker-compose exec postgres1 psql -U postgres
+```
 
 ## Curl Test
 

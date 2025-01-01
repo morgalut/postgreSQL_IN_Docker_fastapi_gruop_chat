@@ -25,7 +25,7 @@ app.add_middleware(
 )
 
 # Database URL (adjust username, password, and ports as necessary)
-DATABASE_URL = "postgresql://postgres:yourpassword@localhost:5433/postgres"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:yourpassword@postgres1:5432/postgres")
 
 # Initialize the database
 database = Database(DATABASE_URL)

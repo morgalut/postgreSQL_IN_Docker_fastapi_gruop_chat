@@ -1,0 +1,32 @@
+version: '3.1'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    restart: always
+    ports:
+      - "8000:8000"  # Expose the backend FastAPI app on port 8000
+    environment:
+      DATABASE_URL: "postgresql://postgres:yourpassword@postgres1:5432/postgres"
+    depends_on:
+      - postgres1
+
+  postgres1:
+    image: postgres
+    container_name: postgres1
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: yourpassword
+    ports:
+      - "5435:5432"  # Changed to avoid conflicts
+
+  postgres2:
+    image: postgres
+    container_name: postgres2
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: yourpassword
+    ports:
+      - "5434:5432"
