@@ -1,20 +1,18 @@
+# Dockerfile for React App
 FROM node:16-alpine
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy package.json and install dependencies
 COPY package.json package-lock.json ./
 RUN npm install
 
-# Copy the rest of the application files
+# Copy the rest of the application
 COPY . .
 
-# Build the React app for production
-RUN npm run build
-
-# Expose the development server port
+# Expose the React port
 EXPOSE 3000
 
-# Start the development server
+# Start the React app
 CMD ["npm", "start"]
