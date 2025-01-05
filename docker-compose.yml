@@ -25,7 +25,8 @@ services:
       DATABASE_URL: "postgresql://postgres:yourpassword@postgres1:5432/postgres"
     volumes:
       - ./backend:/app
-
+    networks:
+      - app_network
 
   react-app:
     build:
