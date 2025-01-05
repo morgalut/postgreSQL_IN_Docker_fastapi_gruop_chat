@@ -1,18 +1,31 @@
-version: '3.1'
+version: '3.8'
 
 services:
-  backend:
-    build:
-      context: ./backend
-    container_name: backend
-    restart: always
-    ports:
-      - "8000:8000"  # Expose the backend FastAPI app on port 8000
+  postgres1:
+    image: postgres:15
+    container_name: postgres1
     environment:
-      DATABASE_URL: "postgresql://postgres:yourpassword@postgres1:5432/my_database"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./backend/message_user.sql:/docker-entrypoint-initdb.d/message_user.sql:ro
+      - postgres_data:/var/lib/postgresql/data
 
+  backend:
+    build: ./backend
+    container_name: backend
     depends_on:
       - postgres1
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://postgres:yourpassword@postgres1:5432/postgres"
+    volumes:
+      - ./backend:/app
+
 
   react-app:
     build:
@@ -22,26 +35,13 @@ services:
       - "3000:3000"
     stdin_open: true
     tty: true
+    networks:
+      - app_network
 
+volumes:
+  postgres_data:
+    driver: local  # Ensures persistent storage for the PostgreSQL database
 
-  postgres1:
-    image: postgres
-    container_name: postgres1
-    restart: always
-    environment:
-      POSTGRES_PASSWORD: yourpassword
-    ports:
-      - "5435:5432"
-    volumes:
-      - ./backend/message_user.sql:/docker-entrypoint-initdb.d/message_user.sql
-
-
-  postgres2:
-    image: postgres
-    container_name: postgres2
-    restart: always
-    environment:
-      POSTGRES_PASSWORD: yourpassword
-    ports:
-      - "5434:5432"
-
+networks:
+  app_network:
+    driver: bridge  # Ensures all services can communicate over the same Docker network

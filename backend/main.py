@@ -1,67 +1,93 @@
-from fastapi import FastAPI, HTTPException
-from databases import Database
+from fastapi import FastAPI, Request, Depends, HTTPException
+from sqlalchemy.orm import Session
+from models import Base, Message, User, SessionLocal, engine
 from pydantic import BaseModel
-import os
-
-# Define data models for Pydantic validation
-class Message(BaseModel):
-    user_id: int
-    content: str
-
-class User(BaseModel):
-    username: str
-    email: str
-
-# Initialize FastAPI app
-app = FastAPI()
+from sqlalchemy.exc import OperationalError, IntegrityError
+from time import sleep
+import logging
+import time
 from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Allow all origins
+    allow_origins=["http://localhost:3000"],  # Adjust the origin to match your frontend
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Database URL (adjust username, password, and ports as necessary)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:yourpassword@postgres1:5432/postgres")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Initialize the database
-database = Database(DATABASE_URL)
+# Middleware for logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    # Log request details
+    start_time = time.time()
+    logging.info(f"New request: {request.method} {request.url.path}")
+    
+    response = await call_next(request)  # Process the request
+    
+    # Log response details
+    process_time = time.time() - start_time
+    logging.info(f"Completed request: {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+    
+    return response
 
-# Startup and shutdown events
-@app.on_event("startup")
-async def startup():
-    await database.connect()
+# Define data models for Pydantic validation
+class MessageBase(BaseModel):
+    user_id: int
+    content: str
 
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
+class UserBase(BaseModel):
+    username: str
+    email: str
+
+# Dependency to get database session
+def get_db():
+    retries = 5
+    db = None
+    for attempt in range(retries):
+        try:
+            db = SessionLocal()
+            yield db
+            break
+        except OperationalError as e:
+            logging.error(f"Database connection failed, retrying... {attempt + 1}/{retries}")
+            sleep(2)
+        finally:
+            if db:
+                db.close()
 
 # Routes
-@app.post("/messages/")
-async def create_message(message: Message):
-    query = "INSERT INTO message(user_id, content) VALUES (:user_id, :content)"
-    await database.execute(query, values={"user_id": message.user_id, "content": message.content})
-    return {"message": "Message sent successfully"}
+@app.post("/messages/", response_model=MessageBase)
+async def create_message(message: MessageBase, db: Session = Depends(get_db)):
+    db_message = Message(user_id=message.user_id, content=message.content)
+    db.add(db_message)
+    db.commit()
+    return db_message
 
 @app.get("/messages/")
-async def read_messages():
-    query = "SELECT * FROM message"
-    messages = await database.fetch_all(query)
-    return messages
+def read_messages(db: Session = Depends(get_db)):
+    return db.query(Message).all()
 
-@app.post("/users/")
-async def create_user(user: User):
-    # Properly quote the table name "user" to avoid syntax errors with reserved keywords
-    query = "INSERT INTO \"user\"(username, email) VALUES (:username, :email)"
-    await database.execute(query, values={"username": user.username, "email": user.email})
-    return {"message": "User created successfully"}
+@app.post("/users/", response_model=UserBase)
+def create_user(user: UserBase, db: Session = Depends(get_db)):
+    logging.info(f"Attempting to create user with email: {user.email}")
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        logging.warning(f"Duplicate email found: {user.email}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"User with email {user.email} already exists."
+        )
+    db_user = User(username=user.username, email=user.email)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 @app.get("/users/")
-async def read_users():
-    # Properly quote the table name "user"
-    query = "SELECT * FROM \"user\""
-    users = await database.fetch_all(query)
-    return users
+def read_users(db: Session = Depends(get_db)):
+    return db.query(User).all()

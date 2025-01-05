@@ -4,6 +4,7 @@
 This project is a FastAPI-based backend with PostgreSQL as the database. Follow the steps below to set up, run, and interact with the application.
 
 ---
+uvicorn main:app --host 0.0.0.0 --port 8000
 
 ## Setup and Running the Project
 
